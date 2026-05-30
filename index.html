@@ -767,6 +767,17 @@
         try {
           const saved = localStorage.getItem(STORAGE_PREFIX + tab);
           state[tab] = saved ? JSON.parse(saved) : [];
+          // Migrar TikTok viejos guardados como generic
+          let changed = false;
+          state[tab] = state[tab].map(v => {
+            if (v.type === 'generic' && v.url && v.url.match(/(?:tiktok\.com|vm\.tiktok\.com)/)) {
+              const tkId = v.url.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/);
+              changed = true;
+              return { ...v, type: 'tiktok', videoId: tkId ? tkId[1] : '' };
+            }
+            return v;
+          });
+          if (changed) saveTab(tab);
         } catch { state[tab] = []; }
       }
     }
@@ -791,6 +802,12 @@
       const fb = url.match(/(?:facebook\.com|fb\.watch)\/.+/);
       if (fb) return { type: 'facebook', url: url };
 
+      const tk = url.match(/(?:tiktok\.com|vm\.tiktok\.com)\/.+/);
+      if (tk) {
+        const tkId = url.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/);
+        return { type: 'tiktok', url: url, id: tkId ? tkId[1] : '' };
+      }
+
       const domain = getDomain(url);
       return { type: 'generic', domain, url };
     }
@@ -798,6 +815,7 @@
     function getThumbnail(info) {
       if (info.type === 'youtube') return `https://img.youtube.com/vi/${info.id}/mqdefault.jpg`;
       if (info.type === 'facebook') return `https://www.google.com/s2/favicons?domain=facebook.com&sz=64`;
+      if (info.type === 'tiktok') return `https://www.google.com/s2/favicons?domain=tiktok.com&sz=64`;
       if (info.type === 'generic') return `https://www.google.com/s2/favicons?domain=${info.domain}&sz=64`;
       return '';
     }
@@ -806,6 +824,10 @@
       if (info.type === 'youtube') return `https://www.youtube.com/embed/${info.id}?autoplay=1&rel=0`;
       if (info.type === 'spotify') return `https://open.spotify.com/embed/${info.sub}/${info.id}?theme=0`;
       if (info.type === 'facebook') return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(info.url)}&show_text=false`;
+      if (info.type === 'tiktok') {
+        if (info.id) return `https://www.tiktok.com/embed/v2/${info.id}`;
+        return info.url;
+      }
       if (info.type === 'generic') return info.url;
       return '';
     }
@@ -814,6 +836,7 @@
       if (info.type === 'youtube') return 'YouTube';
       if (info.type === 'spotify') return 'Spotify';
       if (info.type === 'facebook') return 'Facebook';
+      if (info.type === 'tiktok') return 'TikTok';
       if (info.type === 'generic') return info.domain;
       return '';
     }
@@ -821,6 +844,7 @@
     function getIconForType(type) {
       if (type === 'youtube') return '▶';
       if (type === 'facebook') return 'f';
+      if (type === 'tiktok') return '♫';
       if (type === 'generic') return '🔗';
       return '♫';
     }
@@ -831,6 +855,7 @@
         youtube: 'Video de YouTube',
         spotify: 'Canción de Spotify',
         facebook: 'Video de Facebook',
+        tiktok: 'Video de TikTok',
         generic: getDomain(url)
       };
       const fallback = {
@@ -869,6 +894,21 @@
                 finalTitle = finalTitle || data.data.title || '';
                 finalDesc = finalDesc || data.data.description || '';
               }
+            }
+          }
+        } catch {}
+      }
+
+      // 3) Try TikTok oEmbed oficial
+      if (!finalThumbnail && linkInfo.type === 'tiktok') {
+        try {
+          const resp = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.thumbnail_url) {
+              finalThumbnail = data.thumbnail_url;
+              finalTitle = finalTitle || data.title || '';
+              finalDesc = finalDesc || data.description || '';
             }
           }
         } catch {}
@@ -1027,6 +1067,31 @@
             <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="color:#e63946;font-weight:600;text-decoration:none">Abrir en nueva pestaña →</a>
           </div>
         `;
+      } else if (v.type === 'tiktok') {
+        embed.style.aspectRatio = '16 / 9';
+        embed.style.height = 'auto';
+        const isNumericId = v.videoId && /^\d+$/.test(v.videoId);
+        if (isNumericId) {
+          embed.style.padding = '';
+          embed.innerHTML = `
+            <iframe src="https://www.tiktok.com/embed/v2/${v.videoId}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;border-radius:12px;"></iframe>
+            <div style="text-align:center;padding:10px;font-size:0.85rem;color:rgba(60,60,80,0.5);background:rgba(255,255,255,0.15);border-radius:0 0 12px 12px">
+              ¿No se ve el video?
+              <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="color:#e63946;font-weight:600;text-decoration:none">Ver en TikTok →</a>
+            </div>
+          `;
+        } else {
+          embed.style.aspectRatio = 'unset';
+          embed.style.height = 'auto';
+          embed.style.padding = '20px';
+          embed.innerHTML = `
+            <div style="text-align:center;padding:30px 20px">
+              <div style="font-size:3rem;margin-bottom:12px">♫</div>
+              <p style="color:rgba(60,60,80,0.6);margin-bottom:20px">TikTok no permite incrustar este video. Ábrelo directamente en TikTok.</p>
+              <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#e63946,#c9184a);color:#fff;border-radius:50px;font-weight:600;text-decoration:none">Ver en TikTok →</a>
+            </div>
+          `;
+        }
       } else {
         embed.style.aspectRatio = '16 / 9';
         embed.style.height = 'auto';
