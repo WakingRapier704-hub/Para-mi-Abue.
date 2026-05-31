@@ -1,0 +1,11 @@
+{
+  "name": "Lucero",
+  "short_name": "Lucero",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#fce4ec",
+  "theme_color": "#e63946",
+  "icons": [
+    { "src": "favicon.png", "sizes": "96x96", "type": "image/png" }
+  ]
+}
