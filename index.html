@@ -6,6 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <link rel="icon" type="image/png" sizes="96x96" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
   <title>Lucero - Bienvenida</title>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -698,6 +700,7 @@
       <button class="tab active" data-tab="receta">🍳 Receta</button>
       <button class="tab" data-tab="tejido">🧶 Tejido</button>
       <button class="tab" data-tab="musica">🎵 Música</button>
+      <button class="tab" data-tab="consejos">💡 Consejos</button>
     </div>
 
     <!-- Hero -->
@@ -752,6 +755,21 @@
         </div>
 
         <div class="video-grid" id="musicaGrid"></div>
+      </div>
+
+      <!-- ========== CONSEJOS ========== -->
+      <div class="tab-content" id="consejos">
+        <h2><span class="icon">💡</span> Consejos</h2>
+        <div class="divider"></div>
+        <p>Guarda consejos, tips y trucos útiles.</p>
+
+        <div class="add-link-bar">
+          <input type="text" class="link-input link-input--url" id="consejosInput" placeholder="Pega cualquier link..." onkeydown="if(event.key==='Enter') addVideo('consejos')">
+          <input type="text" class="link-input link-input--title" id="consejosTitle" placeholder="Título (opcional)" onkeydown="if(event.key==='Enter') addVideo('consejos')">
+          <button class="add-btn" onclick="addVideo('consejos')">+</button>
+        </div>
+
+        <div class="video-grid" id="consejosGrid"></div>
       </div>
 
     </div>
@@ -1129,7 +1147,8 @@
       const contents = {
         receta: document.getElementById('receta'),
         tejido: document.getElementById('tejido'),
-        musica: document.getElementById('musica')
+        musica: document.getElementById('musica'),
+        consejos: document.getElementById('consejos')
       };
 
       tabs.forEach(tab => {
@@ -1149,6 +1168,7 @@
       renderTab('receta');
       renderTab('tejido');
       renderTab('musica');
+      renderTab('consejos');
     }
 
     init();
