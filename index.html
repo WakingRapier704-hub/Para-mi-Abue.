@@ -780,11 +780,11 @@
 
   <script>
     // ===== STATE =====
-    const state = { receta: [], tejido: [], musica: [] };
+    const state = { receta: [], tejido: [], musica: [], consejos: [] };
     const STORAGE_PREFIX = 'lucero_';
 
     function loadAll() {
-      for (const tab of ['receta', 'tejido', 'musica']) {
+      for (const tab of ['receta', 'tejido', 'musica', 'consejos']) {
         try {
           const saved = localStorage.getItem(STORAGE_PREFIX + tab);
           state[tab] = saved ? JSON.parse(saved) : [];
@@ -842,7 +842,7 @@
     }
 
     function getEmbedUrl(info) {
-      if (info.type === 'youtube') return `https://www.youtube.com/embed/${info.id}?autoplay=1&rel=0`;
+      if (info.type === 'youtube') return `https://www.youtube.com/embed/${info.id}?rel=0`;
       if (info.type === 'spotify') return `https://open.spotify.com/embed/${info.sub}/${info.id}?theme=0`;
       if (info.type === 'facebook') return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(info.url)}&show_text=false`;
       if (info.type === 'tiktok') {
@@ -924,6 +924,22 @@
       if (!finalThumbnail && linkInfo.type === 'tiktok') {
         try {
           const resp = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.thumbnail_url) {
+              finalThumbnail = data.thumbnail_url;
+              finalTitle = finalTitle || data.title || '';
+              finalDesc = finalDesc || data.description || '';
+            }
+          }
+        } catch {}
+      }
+
+      // 4) Try TikTok oEmbed via CORS proxy (bypasses browser CORS block)
+      if (!finalThumbnail && linkInfo.type === 'tiktok') {
+        try {
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`)}`;
+          const resp = await fetch(proxyUrl);
           if (resp.ok) {
             const data = await resp.json();
             if (data.thumbnail_url) {
@@ -1078,6 +1094,11 @@
       const embed = document.getElementById('modalEmbed');
       document.getElementById('modalTitle').textContent = v.title;
 
+      // Resetear estilos del embed
+      embed.style.aspectRatio = '';
+      embed.style.height = '';
+      embed.style.padding = '';
+
       if (v.type === 'generic') {
         embed.style.aspectRatio = 'unset';
         embed.style.height = '75vh';
@@ -1093,36 +1114,47 @@
         embed.style.height = 'auto';
         const isNumericId = v.videoId && /^\d+$/.test(v.videoId);
         if (isNumericId) {
-          embed.style.padding = '';
           embed.innerHTML = `
-            <iframe src="https://www.tiktok.com/embed/v2/${v.videoId}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;border-radius:12px;"></iframe>
-            <div style="text-align:center;padding:10px;font-size:0.85rem;color:rgba(60,60,80,0.5);background:rgba(255,255,255,0.15);border-radius:0 0 12px 12px">
-              ¿No se ve el video?
+            <iframe src="https://www.tiktok.com/embed/v2/${v.videoId}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;border-radius:12px"></iframe>
+            <div style="text-align:center;padding:8px;font-size:0.85rem;color:rgba(60,60,80,0.5);background:rgba(255,255,255,0.15);border-radius:0 0 12px 12px">
+              ¿No se ve?
               <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="color:#e63946;font-weight:600;text-decoration:none">Ver en TikTok →</a>
             </div>
           `;
-        } else {
+      } else if (v.type === 'youtube') {
+        embed.innerHTML = `
+          <iframe src="${escHtml(v.embedUrl)}" allowfullscreen style="border-radius:12px;width:100%"></iframe>
+          <div style="text-align:center;padding:8px;font-size:0.85rem;color:rgba(60,60,80,0.5);background:rgba(255,255,255,0.15);border-radius:0 0 12px 12px">
+            ¿No se ve?
+            <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" style="color:#e63946;font-weight:600;text-decoration:none">Ver en YouTube →</a>
+          </div>
+        `;
+      } else {
           embed.style.aspectRatio = 'unset';
           embed.style.height = 'auto';
-          embed.style.padding = '20px';
           embed.innerHTML = `
-            <div style="text-align:center;padding:30px 20px">
-              <div style="font-size:3rem;margin-bottom:12px">♫</div>
-              <p style="color:rgba(60,60,80,0.6);margin-bottom:20px">TikTok no permite incrustar este video. Ábrelo directamente en TikTok.</p>
+            <div style="text-align:center;padding:20px">
               <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#e63946,#c9184a);color:#fff;border-radius:50px;font-weight:600;text-decoration:none">Ver en TikTok →</a>
             </div>
           `;
         }
+      } else if (v.type === 'facebook') {
+        embed.style.aspectRatio = 'unset';
+        embed.style.height = 'auto';
+        embed.style.padding = '20px';
+        embed.innerHTML = `
+          <div style="text-align:center;padding:30px 20px">
+            <div style="font-size:3rem;margin-bottom:12px;color:#e63946;font-weight:700">f</div>
+            <p style="color:rgba(60,60,80,0.6);margin-bottom:8px">Facebook no permite ver videos incrustados.</p>
+            <p style="color:rgba(60,60,80,0.4);margin-bottom:24px;font-size:0.85rem">Abre el video en la aplicación de Facebook.</p>
+            <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#e63946,#c9184a);color:#fff;border-radius:50px;font-weight:600;text-decoration:none;font-size:1rem">Ver en Facebook →</a>
+          </div>
+        `;
       } else {
         embed.style.aspectRatio = '16 / 9';
         embed.style.height = 'auto';
         embed.innerHTML = `
-          <iframe src="${escHtml(v.embedUrl)}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy" style="border-radius:12px"></iframe>
-          ${v.type === 'youtube' ? `
-          <div style="text-align:center;padding:8px;font-size:0.85rem;color:rgba(60,60,80,0.5);background:rgba(255,255,255,0.15);border-radius:0 0 12px 12px">
-            ¿No se ve?
-            <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" style="color:#e63946;font-weight:600;text-decoration:none">Ver en YouTube →</a>
-          </div>` : ''}
+          <iframe src="${escHtml(v.embedUrl)}" allowfullscreen style="width:100%;height:100%;border:none;border-radius:12px"></iframe>
         `;
       }
 
